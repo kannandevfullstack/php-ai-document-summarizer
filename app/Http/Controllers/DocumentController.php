@@ -64,9 +64,13 @@ class DocumentController extends Controller
     public function destroy($id)
     {
         $document = Document::findOrFail($id);
+        
+        // Delete file from S3 / Storage
+        if ($document->path) {
+            \Illuminate\Support\Facades\Storage::delete($document->path);
+        }
+        
         $document->delete();
-        // Option to delete file from storage as well
-        // \Storage::delete($document->path);
 
         return redirect()->route('documents.index')
             ->with('success', 'Document deleted successfully.');

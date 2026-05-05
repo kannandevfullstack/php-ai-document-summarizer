@@ -10,26 +10,26 @@ class DocumentParserService
 {
     public function extract(string $filePath, string $mimeType): string
     {
-        $fullPath = storage_path('app/private/' . $filePath);
-
-        // Fallback for older laravel storage path if 'private' disk doesn't exist
-        if (!file_exists($fullPath)) {
-            $fullPath = storage_path('app/' . $filePath);
+        if (!\Illuminate\Support\Facades\Storage::exists($filePath)) {
+            throw new \Exception("File not found in storage: " . $filePath);
         }
 
-        if (!file_exists($fullPath)) {
-             throw new \Exception("File not found at path: " . $fullPath);
-        }
+        // Download to a temporary file because pdfparser and phpword require local paths
+        $tempPath = tempnam(sys_get_temp_dir(), 'doc_');
+        file_put_contents($tempPath, \Illuminate\Support\Facades\Storage::get($filePath));
 
         try {
             return match(true) {
-                str_contains($mimeType, 'pdf')  => $this->parsePdf($fullPath),
-                str_contains($mimeType, 'word') || str_contains($mimeType, 'officedocument') => $this->parseDocx($fullPath),
-                default                         => $this->parseTxt($fullPath),
+                str_contains($mimeType, 'pdf')  => $this->parsePdf($tempPath),
+                str_contains($mimeType, 'word') || str_contains($mimeType, 'officedocument') => $this->parseDocx($tempPath),
+                default                         => $this->parseTxt($tempPath),
             };
         } catch (\Exception $e) {
             Log::error('Error parsing document: ' . $e->getMessage());
             throw new \Exception("Could not parse document: " . $e->getMessage());
+        } finally {
+            // Clean up the temporary file
+            @unlink($tempPath);
         }
     }
 
